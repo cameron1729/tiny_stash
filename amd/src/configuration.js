@@ -26,11 +26,16 @@ import {
     addMenubarItem,
     addToolbarButton,
 } from 'editor_tiny/utils';
+import config from 'core/config';
 
 export const configure = (instanceConfig) => {
-    // Update the instance configuration to add the H5P menu option to the menus and toolbars.
+    const styles = instanceConfig.content_css.concat(
+        [config.wwwroot + "/theme/styles_debug.php?theme=" + config.theme + "&type=plugin&subtype=block_stash"]
+    );
+
     return {
         toolbar: addToolbarButton(instanceConfig.toolbar, 'content', buttonName),
         menu: addMenubarItem(instanceConfig.menu, 'insert', buttonName),
+        content_css: styles
     };
 };

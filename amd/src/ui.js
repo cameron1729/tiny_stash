@@ -45,6 +45,59 @@ export const handleAction = (editor) => {
     displayDialogue(editor);
 };
 
+export const handleInit = editor => async () => {
+    let courseid = getCourseId(editor);
+    let context = getContextId(editor);
+    let itemdata = await getItemData(courseid);
+    const secrettoid = (await getDropData(context)).items.reduce((c, v) => ({...c, [v.hashcode]: v.id}), {});
+
+    if (itemdata.items) {
+        itemdata.items.forEach((item) => {
+            itemsData[item.id] = item;
+        });
+    }
+
+    // Mildly obscure code warning. Normally when you use a regex to split
+    // a string, the match itself is not included in the resulting array.
+    //
+    // From MDN docs:
+    //     When found, separator is removed from the string, and the
+    //     substrings are returned in an array.
+    //
+    // By adding the ( ) around the pattern, the match itself is not included
+    // but the capture group (which is the entire matched string) is spliced
+    // in to the array.
+    //
+    // From MDN docs:
+    //     If separator is a regular expression with capturing groups, then
+    //     each time separator matches, the captured groups (including any
+    //     undefined results) are spliced into the output array. This
+    //     behavior is specified by the regexp's Symbol.split method.
+    const regex = /(<p>\[stashdrop[^\]]*\]<\/p>|\[stashdrop[^\]]*\])/;
+    const promises = editor.getContent().split(regex).map(segment => {
+        const trimmed = segment.replace(/^<p>|<\/p>$/g, '');
+        if (trimmed.slice(0, 10) === '[stashdrop' && trimmed.slice(-1) === ']') {
+            const data = trimmed.matchAll(/(\w+)(?:=?"([^"]*)")?/g).reduce((c, v) => {
+                return {...c, ...{[v[1]]: v[2] ?? true}};
+            }, {});
+
+            const templatedata = {
+                ...data,
+                ...(data.image ? {image: itemsData[secrettoid[data.secret]].imageurl} : {}),
+                shortcode: trimmed
+            };
+
+            return Templates.renderForPromise('tiny_stash/item-preview', templatedata).then(preview => preview.html);
+        }
+
+        return Promise.resolve(segment);
+    });
+
+    Promise.all(promises).then(rendered => {
+        editor.setContent(rendered.join(''));
+    });
+};
+
 /**
  * Display the drop dialogue.
  *
@@ -73,8 +126,6 @@ const displayDialogue = async(editor) => {
     modalPromises.show();
     const $root = await modalPromises.getRoot();
     const root = $root[0];
-
-    let savedata = {};
 
     $root.on(ModalEvents.hidden, () => {
         modalPromises.destroy();
@@ -160,13 +211,26 @@ const displayDialogue = async(editor) => {
     $root.on(ModalEvents.save, () => {
         let activetab = document.querySelector('[aria-selected="true"][data-tiny-stash]');
         let codearea = '';
+        let appearance = document.querySelector('.tiny-stash-appearance').value;
         if (activetab.getAttribute('aria-controls') == 'items') {
             codearea = document.getElementsByClassName('tiny-stash-item-code');
         } else {
             codearea = document.getElementsByClassName('tiny-stash-trade-code');
         }
-        savedata.codearea = codearea[0].innerText;
-        editor.execCommand('mceInsertContent', false, savedata.codearea);
+
+        if (appearance !== "text") {
+            const previewnode = document.querySelector('.preview .block-stash-item').cloneNode(true);
+            const shortcodediv = document.createElement('div');
+            shortcodediv.classList.add("tiny-stash-shortcode");
+            shortcodediv.innerHTML = codearea[0].innerText;
+            shortcodediv.style.display = "none";
+            previewnode.appendChild(shortcodediv);
+            previewnode.setAttribute('contenteditable', false);
+
+            editor.execCommand('mceInsertContent', false, previewnode.outerHTML.replace(/&quot;/g, "'"));
+        } else {
+            editor.execCommand('mceInsertContent', false, codearea[0].innerText);
+        }
     });
 
     root.addEventListener('click', (event) => {

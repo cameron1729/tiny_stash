@@ -22,7 +22,7 @@
  */
 
 import {getButtonImage} from 'editor_tiny/utils';
-import {handleAction} from './ui';
+import {handleAction, handleInit} from './ui';
 import {get_string as getString} from 'core/str';
 import {
     component,
@@ -69,6 +69,30 @@ export const getSetup = async() => {
             icon,
             text: buttonText,
             onAction: () => handleAction(editor),
+        });
+
+        editor.on("init", handleInit(editor));
+
+        editor.on("submit", e => {
+            e.preventDefault();
+
+            const tempcontainer = document.createElement('div');
+            tempcontainer.innerHTML = editor.getContent();
+
+            tempcontainer.querySelectorAll('.block-stash-item').forEach(stashitem => {
+                const shortcode = stashitem.querySelectorAll('.tiny-stash-shortcode')[0].textContent;
+                stashitem.replaceWith(shortcode);
+            });
+
+            const form = editor.getElement().closest('form');
+            const input = document.createElement("input");
+            input.setAttribute("type", "hidden");
+            input.setAttribute("name", e.submitter.name);
+            input.setAttribute("value", e.submitter.value);
+            form.appendChild(input);
+
+            editor.setContent(tempcontainer.innerHTML);
+            form.submit();
         });
     };
 };

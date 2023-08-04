@@ -53,7 +53,7 @@ class plugininfo extends plugin implements
 
     public static function get_plugin_configuration_for_context(context $context, array $options, array $fpoptions,
             ?\editor_tiny\editor $editor = null): array {
-        global $USER;
+        global $USER, $PAGE;
 
         // Get the course context to get the stash manager.
         while ($context->contextlevel != CONTEXT_COURSE) {
@@ -76,6 +76,7 @@ class plugininfo extends plugin implements
             'canmanage' => $permissions,
             'courseid' => $courseid,
             'storeinrepo' => true,
+            'theme' => $PAGE->theme->name
         ];
     }
 }
